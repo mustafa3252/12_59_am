@@ -2,16 +2,23 @@
 
 import { useState } from "react"
 import {
-  ArrowLeft, TrendingUp, Users, Target, Clock,
-  ThumbsUp, MessageCircle, Share2, Award, Calendar,
-  DollarSign, Zap, AlertCircle, Brain, ExternalLink
+  ArrowLeft, Award, ExternalLink, TrendingUp
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import SourcesModal from "@/components/SourcesModal"
+import CompetitorGrid from "@/components/CompetitorGrid"
+import CommunityDetails from "@/components/CommunityDetails"
+import ExecutionPhaseModal from "@/components/ExecutionPhaseModal"
+import ContentAssets from "@/components/ContentAssets"
+
+// Import all parsers
+import { parseCommunityData } from "@/lib/parsers/community-parser"
+import { parseTrendsData } from "@/lib/parsers/trends-parser"
+import { parseExecutionData } from "@/lib/parsers/execution-parser"
+import { parseContentData } from "@/lib/parsers/content-parser"
 
 interface ResultsPageProps {
   idea: string
@@ -19,61 +26,100 @@ interface ResultsPageProps {
   onBack: () => void
 }
 
-const scoreCards = [
-  { 
-    title: "Market Viability", 
-    score: 87, 
-    icon: TrendingUp, 
-    color: "text-green-500",
-    description: "Strong market demand with growing trends"
-  },
-  { 
-    title: "Competition Level", 
-    score: 65, 
-    icon: Target, 
-    color: "text-orange-500",
-    description: "Moderate competition with differentiation opportunities"
-  },
-  { 
-    title: "Target Audience", 
-    score: 92, 
-    icon: Users, 
-    color: "text-blue-500",
-    description: "Clear and accessible target demographic"
-  },
-  { 
-    title: "Execution Feasibility", 
-    score: 78, 
-    icon: Zap, 
-    color: "text-purple-500",
-    description: "Achievable with proper planning and resources"
-  }
-]
-
-const trendData = [
-  { year: "2022", volume: 720 },
-  { year: "2023", volume: 1350 },
-  { year: "2024", volume: 2900 },
-  { year: "2025", volume: 4400 }
-]
-
-const communitySignals = [
-  { platform: "Reddit", engagement: 1247, sentiment: "Positive", icon: MessageCircle },
-  { platform: "Twitter", engagement: 3891, sentiment: "Very Positive", icon: Share2 },
-  { platform: "ProductHunt", engagement: 542, sentiment: "Positive", icon: ThumbsUp }
-]
-
-const executionTimeline = [
-  { phase: "Research & Planning", duration: "2-3 weeks", status: "critical" },
-  { phase: "MVP Development", duration: "6-8 weeks", status: "important" },
-  { phase: "Beta Testing", duration: "3-4 weeks", status: "normal" },
-  { phase: "Launch & Marketing", duration: "4-6 weeks", status: "normal" },
-  { phase: "Scale & Optimize", duration: "Ongoing", status: "future" }
-]
-
 export default function ResultsPage({ idea, report, onBack }: ResultsPageProps) {
   const [sourcesOpen, setSourcesOpen] = useState(false)
-  const overallScore = Math.round(scoreCards.reduce((sum, card) => sum + card.score, 0) / scoreCards.length)
+  const [selectedPhase, setSelectedPhase] = useState<any>(null)
+
+  // Parse all data from report
+  const communityData = report?.community ? parseCommunityData(report.community) : null
+  const trendsData = report?.trends ? parseTrendsData(report.trends) : null
+  const executionData = report?.execution ? parseExecutionData(report.execution) : null
+  const contentData = report?.content ? parseContentData(report.content) : null
+
+  // Calculate real scores from actual data
+  const calculateScores = () => {
+    const scores = {
+      marketViability: 75,
+      problemSeverity: 75,
+      competitionLevel: 75,
+      communityInterest: 75,
+      executionFeasibility: 75,
+      whyNowScore: 75
+    }
+
+    // Market Viability - based on TAM and CAGR from market data
+    if (report?.market) {
+      const marketContent = report.market.map((r: any) => r.content).join(' ')
+      const tamMatch = marketContent.match(/([\d.]+)\s*B(?:illion)?/i)
+      const cagrMatch = marketContent.match(/(\d+)%.*?CAGR/i)
+
+      if (tamMatch && parseFloat(tamMatch[1]) > 10) scores.marketViability = 90
+      else if (tamMatch && parseFloat(tamMatch[1]) > 5) scores.marketViability = 80
+
+      if (cagrMatch && parseInt(cagrMatch[1]) > 15) scores.marketViability = Math.min(95, scores.marketViability + 10)
+    }
+
+    // Community Interest - based on parsed community data
+    if (communityData && communityData.platforms.length > 0) {
+      if (communityData.engagementLevel === 'High') scores.communityInterest = 92
+      else if (communityData.engagementLevel === 'Medium') scores.communityInterest = 78
+      else scores.communityInterest = 65
+    }
+
+    // Competition Level - inverse score (more competition = lower score)
+    if (report?.competition) {
+      const compCount = report.competition.length
+      if (compCount > 10) scores.competitionLevel = 60
+      else if (compCount > 5) scores.competitionLevel = 70
+      else scores.competitionLevel = 85
+    }
+
+    // Trends Growth - based on parsed trends data
+    if (trendsData && trendsData.overallGrowth) {
+      const growthMatch = trendsData.overallGrowth.match(/(\d+)/)
+      if (growthMatch) {
+        const growth = parseInt(growthMatch[1])
+        if (growth > 50) scores.problemSeverity = 90
+        else if (growth > 20) scores.problemSeverity = 80
+      }
+    }
+
+    return scores
+  }
+
+  const scores = calculateScores()
+  const overallScore = Math.round(Object.values(scores).reduce((a, b) => a + b, 0) / Object.values(scores).length)
+
+  const scoreCards = [
+    {
+      title: "Market Viability",
+      score: scores.marketViability,
+      icon: TrendingUp,
+      color: "text-green-500",
+      description: "Market demand and growth potential"
+    },
+    {
+      title: "Community Interest",
+      score: scores.communityInterest,
+      icon: TrendingUp,
+      color: "text-blue-500",
+      description: "Active community engagement and demand"
+    },
+    {
+      title: "Competition Level",
+      score: scores.competitionLevel,
+      icon: TrendingUp,
+      color: "text-orange-500",
+      description: "Competitive landscape analysis"
+    },
+    {
+      title: "Trend Growth",
+      score: scores.problemSeverity,
+      icon: TrendingUp,
+      color: "text-purple-500",
+      description: "Search volume and interest trends"
+    }
+  ]
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -129,24 +175,29 @@ export default function ResultsPage({ idea, report, onBack }: ResultsPageProps) 
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-foreground leading-relaxed text-lg">
-              Your idea shows strong potential in the current market landscape. The concept addresses a clear
-              need with growing demand, particularly among tech-savvy consumers aged 25-45. While there is
-              existing competition, your unique approach offers differentiation opportunities through
-              personalization and AI integration.
+              {report?.executiveSummary || "Your idea shows strong potential in the current market landscape. Analysis includes market research, competition insights, community validation, and execution roadmap."}
             </p>
             <div className="flex flex-wrap gap-2">
-              <Badge variant="default" className="bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30 backdrop-blur-sm px-4 py-1.5 text-sm font-medium">
-                High Demand
-              </Badge>
-              <Badge variant="default" className="bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 backdrop-blur-sm px-4 py-1.5 text-sm font-medium">
-                Clear Target Market
-              </Badge>
-              <Badge variant="default" className="bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/30 backdrop-blur-sm px-4 py-1.5 text-sm font-medium">
-                Scalable Model
-              </Badge>
-              <Badge variant="default" className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border border-orange-500/30 backdrop-blur-sm px-4 py-1.5 text-sm font-medium">
-                Moderate Risk
-              </Badge>
+              {overallScore > 80 && (
+                <Badge variant="default" className="bg-green-500/20 text-green-400 hover:bg-green-500/30 border border-green-500/30 backdrop-blur-sm px-4 py-1.5 text-sm font-medium">
+                  High Potential
+                </Badge>
+              )}
+              {communityData && communityData.platforms.length > 5 && (
+                <Badge variant="default" className="bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border border-blue-500/30 backdrop-blur-sm px-4 py-1.5 text-sm font-medium">
+                  Active Community
+                </Badge>
+              )}
+              {executionData && executionData.roadmap.length > 0 && (
+                <Badge variant="default" className="bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 border border-purple-500/30 backdrop-blur-sm px-4 py-1.5 text-sm font-medium">
+                  Clear Roadmap
+                </Badge>
+              )}
+              {trendsData && trendsData.keywords.length > 0 && (
+                <Badge variant="default" className="bg-orange-500/20 text-orange-400 hover:bg-orange-500/30 border border-orange-500/30 backdrop-blur-sm px-4 py-1.5 text-sm font-medium">
+                  Growing Demand
+                </Badge>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -185,198 +236,192 @@ export default function ResultsPage({ idea, report, onBack }: ResultsPageProps) 
           </div>
         </div>
 
-        {/* Trend Chart */}
-        <Card className="glass-card backdrop-blur-xl bg-card/70 border-primary/30 shadow-2xl hover:border-primary/50 transition-all duration-300">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-2xl">
-              <TrendingUp className="h-6 w-6 text-primary" />
-              Trend Analysis
-            </CardTitle>
-            <CardDescription className="text-base">Search volume growth over time</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                <XAxis
-                  dataKey="year"
-                  stroke="rgba(255,255,255,0.5)"
-                  style={{ fontSize: '14px' }}
-                />
-                <YAxis
-                  stroke="rgba(255,255,255,0.5)"
-                  style={{ fontSize: '14px' }}
-                  tickFormatter={(value) => `${(value / 1000).toFixed(1)}k`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'rgba(0,0,0,0.8)',
-                    border: '1px solid rgba(96, 165, 250, 0.3)',
-                    borderRadius: '8px',
-                    color: '#fff'
-                  }}
-                  formatter={(value: any) => [`${value}`, 'volume']}
-                  labelStyle={{ color: '#60a5fa' }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="volume"
-                  stroke="#60a5fa"
-                  strokeWidth={3}
-                  dot={{ fill: '#60a5fa', strokeWidth: 2, r: 6 }}
-                  activeDot={{ r: 8, fill: '#60a5fa' }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+        {/* Competition Analysis - NEW! */}
+        {report?.competition && report.competition.length > 0 && (
+          <CompetitorGrid
+            competitors={[]} // TODO: Create competition parser
+            onCompetitorClick={(comp) => {
+              // Show competitor modal
+              console.log('Competitor clicked:', comp)
+            }}
+          />
+        )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="glass-card backdrop-blur-md bg-card/50 rounded-xl border border-primary/30 p-4">
-                <p className="text-sm text-muted-foreground mb-1">Search Volume</p>
-                <p className="text-3xl font-bold text-foreground">4.4K</p>
-              </div>
-              <div className="glass-card backdrop-blur-md bg-card/50 rounded-xl border border-primary/30 p-4">
-                <p className="text-sm text-muted-foreground mb-1">Growth</p>
-                <p className="text-3xl font-bold text-green-400">+511%</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Community Signals - ENHANCED with real data! */}
+        {communityData && communityData.platforms.length > 0 && (
+          <CommunityDetails
+            platforms={communityData.platforms}
+            totalReach={communityData.totalReach}
+            engagementLevel={communityData.engagementLevel}
+            keyInsights={communityData.keyInsights}
+          />
+        )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Community Signals */}
+        {/* Trend Analysis - ENHANCED with keywords! */}
+        {trendsData && trendsData.keywords.length > 0 && (
           <Card className="glass-card backdrop-blur-xl bg-card/70 border-primary/30 shadow-2xl hover:border-primary/50 transition-all duration-300">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-2xl">
-                <Users className="h-6 w-6 text-primary" />
-                Community Signals
+                <TrendingUp className="h-6 w-6 text-primary" />
+                Trend Analysis
               </CardTitle>
-              <CardDescription className="text-base">Social media sentiment analysis</CardDescription>
+              <CardDescription className="text-base">
+                Tracking {trendsData.keywords.length} keywords with {trendsData.overallGrowth} growth
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {communitySignals.map((signal) => {
-                const Icon = signal.icon
-                return (
-                  <div
-                    key={signal.platform}
-                    className="flex items-center justify-between p-4 glass-card backdrop-blur-md bg-card/50 rounded-xl border border-primary/20 hover:border-primary/40 hover:shadow-lg transition-all duration-300 group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-3 bg-gradient-to-br from-primary/30 to-blue-500/30 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                        <Icon className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-semibold text-foreground">{signal.platform}</p>
-                        <p className="text-sm text-muted-foreground">{signal.engagement.toLocaleString()} mentions</p>
-                      </div>
-                    </div>
-                    <Badge variant="default" className="bg-green-500/20 text-green-400 border border-green-500/30 backdrop-blur-sm px-3 py-1">
-                      {signal.sentiment}
+            <CardContent className="space-y-6">
+              {/* Keywords List */}
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-3">Top Keywords:</p>
+                <div className="flex flex-wrap gap-2">
+                  {trendsData.keywords.slice(0, 8).map((kw, idx) => (
+                    <Badge key={idx} variant="outline" className="px-3 py-1.5">
+                      {kw.keyword}
+                      {kw.volume && <span className="ml-2 text-primary">{kw.volume}</span>}
+                      {kw.growth && <span className="ml-1 text-green-400">↑{kw.growth}</span>}
                     </Badge>
+                  ))}
+                </div>
+              </div>
+
+              {/* Growth Stats */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="glass-card backdrop-blur-md bg-card/50 rounded-xl border border-primary/30 p-4">
+                  <p className="text-sm text-muted-foreground mb-1">Overall Growth</p>
+                  <p className="text-3xl font-bold text-green-400">{trendsData.overallGrowth}</p>
+                </div>
+                {trendsData.forecast && (
+                  <div className="glass-card backdrop-blur-md bg-card/50 rounded-xl border border-primary/30 p-4">
+                    <p className="text-sm text-muted-foreground mb-1">Forecast</p>
+                    <p className="text-xl font-bold text-foreground">{trendsData.forecast}</p>
                   </div>
-                )
-              })}
+                )}
+              </div>
+
+              {/* Insights */}
+              {trendsData.insights && trendsData.insights.length > 0 && (
+                <div className="space-y-2">
+                  {trendsData.insights.map((insight, idx) => (
+                    <p key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+                      <span className="text-primary">•</span>
+                      {insight}
+                    </p>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
+        )}
 
-          {/* Execution Timeline */}
+        {/* Execution Timeline - ENHANCED with clickable phases! */}
+        {executionData && executionData.roadmap.length > 0 && (
           <Card className="glass-card backdrop-blur-xl bg-card/70 border-primary/30 shadow-2xl hover:border-primary/50 transition-all duration-300">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-2xl">
-                <Calendar className="h-6 w-6 text-primary" />
+                <TrendingUp className="h-6 w-6 text-primary" />
                 Execution Timeline
               </CardTitle>
-              <CardDescription className="text-base">Recommended implementation phases</CardDescription>
+              <CardDescription className="text-base">
+                Click any phase to see detailed guide
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {executionTimeline.map((phase, index) => (
-                <div key={phase.phase} className="flex gap-4 group">
+              {executionData.roadmap.map((phase, index) => (
+                <div
+                  key={index}
+                  className="flex gap-4 group cursor-pointer"
+                  onClick={() => setSelectedPhase(phase)}
+                >
                   <div className="flex flex-col items-center">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold transition-all duration-300 shadow-lg ${
-                        phase.status === 'critical'
-                          ? 'bg-gradient-to-br from-red-500/30 to-red-600/30 text-red-400 border border-red-500/40 group-hover:scale-110'
-                          : phase.status === 'important'
-                            ? 'bg-gradient-to-br from-orange-500/30 to-orange-600/30 text-orange-400 border border-orange-500/40 group-hover:scale-110'
-                            : phase.status === 'future'
-                              ? 'bg-muted/50 text-muted-foreground border border-border'
-                              : 'bg-gradient-to-br from-primary/30 to-blue-500/30 text-primary border border-primary/40 group-hover:scale-110'
-                      }`}
-                    >
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center font-bold transition-all duration-300 shadow-lg bg-gradient-to-br from-primary/30 to-blue-500/30 text-primary border border-primary/40 group-hover:scale-110">
                       {index + 1}
                     </div>
-                    {index < executionTimeline.length - 1 && (
+                    {index < executionData.roadmap.length - 1 && (
                       <div className="w-1 h-full bg-gradient-to-b from-primary/50 to-border mt-2 rounded-full" />
                     )}
                   </div>
-                  <div className="flex-1 pb-8">
-                    <div className="flex items-center gap-2 mb-2">
-                      <p className="font-semibold text-foreground text-lg">{phase.phase}</p>
-                      {phase.status === 'critical' && (
-                        <AlertCircle className="h-5 w-5 text-red-400 animate-pulse" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Clock className="h-4 w-4" />
-                      <span className="font-medium">{phase.duration}</span>
-                    </div>
+                  <div className="flex-1 pb-8 glass-card backdrop-blur-md bg-card/30 rounded-xl border border-primary/20 hover:border-primary/40 hover:shadow-lg transition-all p-4">
+                    <p className="font-semibold text-foreground text-lg mb-1">{phase.name}</p>
+                    <p className="text-sm text-muted-foreground mb-2">{phase.timeline}</p>
+                    <p className="text-xs text-primary">Click to see detailed guide →</p>
                   </div>
                 </div>
               ))}
             </CardContent>
           </Card>
-        </div>
+        )}
 
-        {/* Key Recommendations */}
-        <Card className="glass-card backdrop-blur-xl bg-gradient-to-br from-primary/10 via-card/70 to-card/70 border-primary/50 shadow-2xl hover:border-primary/70 transition-all duration-300">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-2xl">
-              <Target className="h-6 w-6 text-primary" />
-              Key Recommendations
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-4 p-5 glass-card backdrop-blur-md bg-card/50 rounded-xl border border-primary/30 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-green-500/30 to-emerald-500/30 border border-green-500/40 group-hover:scale-110 transition-transform duration-300">
-                <DollarSign className="h-6 w-6 text-green-400 flex-shrink-0" />
-              </div>
-              <div>
-                <p className="font-semibold mb-2 text-lg text-foreground">Start with MVP</p>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Focus on core features first. Estimate $15-25K initial investment for a lean launch.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-4 p-5 glass-card backdrop-blur-md bg-card/50 rounded-xl border border-primary/30 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500/30 to-cyan-500/30 border border-blue-500/40 group-hover:scale-110 transition-transform duration-300">
-                <Users className="h-6 w-6 text-blue-400 flex-shrink-0" />
-              </div>
-              <div>
-                <p className="font-semibold mb-2 text-lg text-foreground">Build Community Early</p>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Engage with potential users on Reddit and Twitter to validate assumptions and build momentum.
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-4 p-5 glass-card backdrop-blur-md bg-card/50 rounded-xl border border-primary/30 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300 group">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 border border-purple-500/40 group-hover:scale-110 transition-transform duration-300">
-                <Zap className="h-6 w-6 text-purple-400 flex-shrink-0" />
-              </div>
-              <div>
-                <p className="font-semibold mb-2 text-lg text-foreground">Leverage AI Differentiation</p>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Your AI-powered personalization is a key differentiator. Make it central to your marketing message.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* GTM Strategy - NEW! */}
+        {executionData && executionData.gtmStrategy && (
+          <Card className="glass-card backdrop-blur-xl bg-card/70 border-primary/30 shadow-2xl hover:border-primary/50 transition-all duration-300">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-2xl">
+                <TrendingUp className="h-6 w-6 text-primary" />
+                Go-to-Market Strategy
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Customer Segments */}
+              {executionData.gtmStrategy.segments.length > 0 && (
+                <div>
+                  <h4 className="text-lg font-semibold mb-3">Target Segments</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {executionData.gtmStrategy.segments.map((seg, idx) => (
+                      <div key={idx} className="glass-card backdrop-blur-md bg-card/50 rounded-xl border border-primary/20 p-4">
+                        <p className="font-semibold text-foreground">{seg.name}</p>
+                        <p className="text-sm text-muted-foreground mt-1">{seg.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Acquisition Channels */}
+              {executionData.gtmStrategy.channels.length > 0 && (
+                <div>
+                  <h4 className="text-lg font-semibold mb-3">Acquisition Channels</h4>
+                  <div className="space-y-2">
+                    {executionData.gtmStrategy.channels.slice(0, 5).map((ch, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 glass-card backdrop-blur-md bg-card/50 rounded-lg border border-primary/20">
+                        <span className="font-medium text-foreground">{ch.name}</span>
+                        <div className="flex items-center gap-3">
+                          {ch.cac && <span className="text-sm text-muted-foreground">CAC: {ch.cac}</span>}
+                          <Badge variant={ch.priority === 'High' ? 'default' : 'secondary'}>
+                            {ch.priority}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Content & Marketing Assets - THE GAME CHANGER! */}
+        {contentData && (
+          <ContentAssets
+            landingPage={contentData.landingPage}
+            ads={contentData.ads}
+            brand={contentData.brand}
+            wireframes={contentData.wireframes}
+            aiPrompts={contentData.aiPrompts}
+          />
+        )}
       </div>
 
-      {/* Sources Modal */}
+      {/* Modals */}
       <SourcesModal
         open={sourcesOpen}
         onClose={() => setSourcesOpen(false)}
         sources={report?.sources || {}}
+      />
+
+      <ExecutionPhaseModal
+        open={!!selectedPhase}
+        onClose={() => setSelectedPhase(null)}
+        phase={selectedPhase}
       />
     </div>
   )
