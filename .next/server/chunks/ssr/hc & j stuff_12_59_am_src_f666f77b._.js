@@ -6441,8 +6441,8 @@ function ResultsPage({ idea, report, onBack }) {
             whyNowScore: 75
         };
         // Market Viability - based on TAM and CAGR from market data
-        if (report?.market) {
-            const marketContent = report.market.map((r)=>r.content).join(' ');
+        if (report?.market && Array.isArray(report.market)) {
+            const marketContent = report.market.map((r)=>r.content || '').join(' ');
             const tamMatch = marketContent.match(/([\d.]+)\s*B(?:illion)?/i);
             const cagrMatch = marketContent.match(/(\d+)%.*?CAGR/i);
             if (tamMatch && parseFloat(tamMatch[1]) > 10) scores.marketViability = 90;
@@ -6456,7 +6456,7 @@ function ResultsPage({ idea, report, onBack }) {
             else scores.communityInterest = 65;
         }
         // Competition Level - inverse score (more competition = lower score)
-        if (report?.competition) {
+        if (report?.competition && Array.isArray(report.competition)) {
             const compCount = report.competition.length;
             if (compCount > 10) scores.competitionLevel = 60;
             else if (compCount > 5) scores.competitionLevel = 70;

@@ -68,46 +68,80 @@ export function parseExecutionData(results: any[]): ParsedExecutionData {
   // Query 0: 12-Month Roadmap
   if (results[0]?.content) {
     const content = results[0].content;
+    console.log('🔍 Execution Parser - Roadmap Content:', content.substring(0, 500));
 
-    // Extract phases - look for "Phase N:" or "Month X-Y:"
-    const phaseMatches = content.matchAll(/(?:Phase\s+(\d+)|Months?\s+([\d-]+))[:\s]+([^\n]+)/gi);
-    for (const match of phaseMatches) {
-      const phaseName = match[3].trim();
-      const timeline = match[2] || `Phase ${match[1]}`;
+    try {
+      // Extract phases - look for "Phase N:" or "Month X-Y:" or numbered sections
+      const phaseMatches = content.matchAll(/(?:Phase\s+(\d+)|Months?\s+([\d-]+)|(\d+)\.\s+)(?:[:\s]*)([^\n]{10,})/gi);
 
-      // Find the section for this phase
-      const phaseRegex = new RegExp(`${escapeRegex(phaseName)}[\\s\\S]{0,800}`, 'i');
-      const phaseSection = content.match(phaseRegex)?.[0] || '';
+      for (const match of phaseMatches) {
+        const phaseName = (match[4] || match[3] || match[1] || '').trim();
+        const phaseNum = match[1] || match[3] || '1';
+        const timeline = match[2] || `Phase ${phaseNum}`;
 
-      roadmap.push({
-        name: phaseName,
-        timeline: timeline,
-        activities: extractListItems(phaseSection, /(?:activities?|tasks?|actions?)[:\s]/i),
-        milestones: extractListItems(phaseSection, /milestones?[:\s]/i),
-        deliverables: extractListItems(phaseSection, /deliverables?[:\s]/i),
-        successMetrics: extractListItems(phaseSection, /(?:success\s*metrics?|KPIs?)[:\s]/i),
-        resources: extractListItems(phaseSection, /resources?(?:\s*needed)?[:\s]/i),
-        transitionCriteria: extractFirstLine(phaseSection, /transition\s*criteria[:\s]/i)
-      });
-    }
+        if (!phaseName || phaseName.length < 5) continue;
 
-    // If no phases found, try alternative format
-    if (roadmap.length === 0) {
-      const sections = content.split(/\n\n+/);
-      sections.forEach((section, idx) => {
-        if (section.length > 50 && idx < 5) {
-          const firstLine = section.split('\n')[0];
-          roadmap.push({
-            name: firstLine.substring(0, 100),
-            timeline: `Phase ${idx + 1}`,
-            activities: extractListItems(section, /(?:activities?|tasks?)[:\s]/i),
-            milestones: extractListItems(section, /milestones?[:\s]/i),
-            deliverables: extractListItems(section, /deliverables?[:\s]/i),
-            successMetrics: extractListItems(section, /metrics?[:\s]/i),
-            resources: extractListItems(section, /resources?[:\s]/i)
-          });
+        // Find the section for this phase - simplified approach
+        const phaseStart = content.indexOf(phaseName);
+        const phaseSection = phaseStart >= 0 ? content.substring(phaseStart, phaseStart + 600) : '';
+
+        roadmap.push({
+          name: phaseName,
+          timeline: timeline,
+          activities: extractListItems(phaseSection, /(?:activities?|tasks?|actions?)[:\s]/i),
+          milestones: extractListItems(phaseSection, /milestones?[:\s]/i),
+          deliverables: extractListItems(phaseSection, /deliverables?[:\s]/i),
+          successMetrics: extractListItems(phaseSection, /(?:success\s*metrics?|KPIs?)[:\s]/i),
+          resources: extractListItems(phaseSection, /resources?(?:\s*needed)?[:\s]/i),
+          transitionCriteria: extractFirstLine(phaseSection, /transition\s*criteria[:\s]/i)
+        });
+      }
+
+      console.log('✅ Found', roadmap.length, 'phases via regex');
+
+      // If no phases found, try alternative format - split by headers
+      if (roadmap.length === 0) {
+        console.log('⚠️ No phases found via regex, trying line-by-line parsing');
+
+        const lines = content.split('\n');
+        let currentPhase: any = null;
+
+        lines.forEach((line, idx) => {
+          const trimmed = line.trim();
+
+          // Look for phase headers (various formats)
+          if (
+            /^(?:Phase\s+\d+|Month\s+\d+|Q\d|Step\s+\d+|Week\s+\d+|\d+\.)/i.test(trimmed) &&
+            trimmed.length > 5 &&
+            trimmed.length < 150
+          ) {
+            // Save previous phase
+            if (currentPhase && currentPhase.name) {
+              roadmap.push(currentPhase);
+            }
+
+            // Start new phase
+            currentPhase = {
+              name: trimmed.replace(/^\d+\.\s*/, ''),
+              timeline: trimmed.match(/(?:Phase|Month|Q|Week)\s+[\d-]+/i)?.[0] || `Phase ${roadmap.length + 1}`,
+              activities: [],
+              milestones: [],
+              deliverables: [],
+              successMetrics: [],
+              resources: []
+            };
+          }
+        });
+
+        // Add last phase
+        if (currentPhase && currentPhase.name) {
+          roadmap.push(currentPhase);
         }
-      });
+
+        console.log('✅ Found', roadmap.length, 'phases via line parsing');
+      }
+    } catch (error) {
+      console.warn('❌ Error parsing roadmap phases:', error);
     }
   }
 
@@ -217,7 +251,7 @@ export function parseExecutionData(results: any[]): ParsedExecutionData {
     }
   }
 
-  return {
+  const result = {
     roadmap: roadmap.slice(0, 6),
     gtmStrategy: {
       segments: segments.slice(0, 5),
@@ -228,6 +262,16 @@ export function parseExecutionData(results: any[]): ParsedExecutionData {
     risks: risks.slice(0, 8),
     teamPlan: teamPlan.slice(0, 10)
   };
+
+  console.log('📊 Execution Parser Final Result:', {
+    roadmapCount: result.roadmap.length,
+    segmentsCount: result.gtmStrategy.segments.length,
+    channelsCount: result.gtmStrategy.channels.length,
+    risksCount: result.risks.length,
+    teamPlanCount: result.teamPlan.length
+  });
+
+  return result;
 }
 
 // Helper function to extract bullet points or numbered lists

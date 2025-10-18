@@ -23,10 +23,8 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  experimental: {
-    outputFileTracingIncludes: {
-      '/api/**/*': ['./node_modules/**/*.wasm', './node_modules/**/*.node'],
-    },
+  outputFileTracingIncludes: {
+    '/api/**/*': ['./node_modules/**/*.wasm', './node_modules/**/*.node'],
   },
 };
 
