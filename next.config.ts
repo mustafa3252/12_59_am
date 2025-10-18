@@ -23,8 +23,40 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  outputFileTracingIncludes: {
-    '/api/**/*': ['./node_modules/**/*.wasm', './node_modules/**/*.node'],
+  // Exclude heavy packages from serverless bundle
+  experimental: {
+    serverComponentsExternalPackages: [
+      'bcrypt',
+      'three',
+      'three-globe',
+      '@react-three/fiber',
+      '@react-three/drei',
+      '@dimforge/rapier3d-compat',
+      'better-auth',
+      'drizzle-orm',
+      'drizzle-kit',
+      'stripe',
+      '@libsql/client',
+    ],
+  },
+  // Optimize bundle size
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Exclude unused packages from server bundle
+      config.externals = config.externals || [];
+      config.externals.push({
+        'bcrypt': 'commonjs bcrypt',
+        'three': 'commonjs three',
+        'three-globe': 'commonjs three-globe',
+        '@react-three/fiber': 'commonjs @react-three/fiber',
+        '@react-three/drei': 'commonjs @react-three/drei',
+        '@dimforge/rapier3d-compat': 'commonjs @dimforge/rapier3d-compat',
+        'better-auth': 'commonjs better-auth',
+        'drizzle-orm': 'commonjs drizzle-orm',
+        'stripe': 'commonjs stripe',
+      });
+    }
+    return config;
   },
 };
 
