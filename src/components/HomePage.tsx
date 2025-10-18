@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Search, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import Image from "next/image"
 
 interface HomePageProps {
   onSearch: (query: string) => void
@@ -97,17 +98,22 @@ export default function HomePage({ onSearch }: HomePageProps) {
       <div className="absolute inset-0 bg-gradient-to-br from-background via-card to-background opacity-50" />
       
       {/* Hero Section */}
-      <div className="relative z-10 container mx-auto px-4 pt-20 pb-32">
-        <div className="text-center space-y-8">
+      <div className="relative z-10 container mx-auto px-4 pt-16 pb-32">
+        <div className="text-center space-y-6">
           {/* App Name Display */}
-          <div className="inline-block glass-card px-8 py-4 rounded-2xl">
-            <p className="text-5xl font-bold text-primary tabular-nums tracking-tight">
-              12:59 AM
-            </p>
+          <div className="inline-block mb-4">
+            <Image
+              src="/assets/12_59_am_logo/12_59_am_light.png"
+              alt="12:59 AM"
+              width={1198}
+              height={507}
+              className="w-auto h-32 md:h-40"
+              priority
+            />
           </div>
 
           {/* Title and Subtitle */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
               Prove your idea works
             </h1>
@@ -118,36 +124,45 @@ export default function HomePage({ onSearch }: HomePageProps) {
 
           {/* Pinned Search Bar with Following Glow */}
           <div className="relative max-w-2xl mx-auto">
-            <div 
+            <div
               ref={searchBarRef}
               className="relative"
             >
-              {/* Following Glow Effect */}
-              <div 
-                className="absolute inset-0 pointer-events-none rounded-full"
+              {/* Following Glow Effect - Enhanced */}
+              <div
+                className="absolute -inset-4 pointer-events-none rounded-full opacity-75 transition-opacity duration-300"
                 style={{
-                  background: `radial-gradient(circle 150px at ${glowPos.x + 50}% ${glowPos.y + 50}%, rgba(96, 165, 250, 0.4), transparent 70%)`,
+                  background: `radial-gradient(circle 200px at calc(50% + ${glowPos.x}px) calc(50% + ${glowPos.y}px), oklch(0.7 0.3 250 / 0.6), transparent 70%)`,
+                  filter: 'blur(30px)',
+                }}
+              />
+
+              {/* Secondary Glow Layer */}
+              <div
+                className="absolute -inset-2 pointer-events-none rounded-full"
+                style={{
+                  background: `radial-gradient(circle 150px at calc(50% + ${glowPos.x}px) calc(50% + ${glowPos.y}px), oklch(0.7 0.3 250 / 0.4), transparent 60%)`,
                   filter: 'blur(20px)',
                 }}
               />
-              
+
               {/* Search Bar */}
-              <form 
+              <form
                 onSubmit={handleSubmit}
-                className="relative glass-card rounded-full p-2 flex items-center gap-2 shadow-2xl border-2 border-primary/30"
+                className="relative glass-card rounded-full p-2 flex items-center gap-2 shadow-2xl border border-primary/50 backdrop-blur-xl bg-card/80 hover:border-primary/70 transition-all duration-300"
               >
-                <Search className="ml-3 h-5 w-5 text-primary" />
+                <Search className="ml-3 h-5 w-5 text-primary animate-pulse" />
                 <Input
                   type="text"
                   placeholder="Describe your business idea..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-foreground placeholder:text-muted-foreground"
+                  className="flex-1 border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-foreground placeholder:text-muted-foreground text-lg"
                 />
-                <Button 
+                <Button
                   type="submit"
-                  size="sm" 
-                  className="rounded-full bg-primary hover:bg-primary/90"
+                  size="sm"
+                  className="rounded-full bg-primary hover:bg-primary/90 shadow-lg hover:shadow-primary/50 transition-all duration-300"
                 >
                   <Sparkles className="h-4 w-4" />
                 </Button>
@@ -166,19 +181,24 @@ export default function HomePage({ onSearch }: HomePageProps) {
               <div
                 key={idea.id}
                 onClick={() => onSearch(idea.title)}
-                className="flex-shrink-0 w-80 glass-card rounded-xl overflow-hidden cursor-pointer hover:scale-105 transition-transform duration-300 snap-start group"
+                className="flex-shrink-0 w-80 glass-card rounded-2xl overflow-hidden cursor-pointer hover:scale-105 transition-all duration-300 snap-start group border border-primary/20 backdrop-blur-xl bg-card/70 hover:border-primary/50 hover:shadow-2xl hover:shadow-primary/20"
               >
                 <div className="relative h-48 overflow-hidden">
-                  <img 
-                    src={idea.image} 
+                  <img
+                    src={idea.image}
                     alt={idea.title}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-card to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-card via-card/50 to-transparent" />
+
+                  {/* Sparkle indicator */}
+                  <div className="absolute top-4 right-4 p-2 rounded-full bg-primary/20 backdrop-blur-md border border-primary/30 group-hover:bg-primary/30 transition-all duration-300">
+                    <Sparkles className="h-4 w-4 text-primary" />
+                  </div>
                 </div>
                 <div className="p-6">
-                  <h3 className="text-xl font-semibold mb-2">{idea.title}</h3>
-                  <p className="text-muted-foreground text-sm">{idea.description}</p>
+                  <h3 className="text-xl font-semibold mb-2 group-hover:text-primary transition-colors duration-300">{idea.title}</h3>
+                  <p className="text-muted-foreground text-sm leading-relaxed">{idea.description}</p>
                 </div>
               </div>
             ))}
